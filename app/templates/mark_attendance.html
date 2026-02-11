@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Mark Attendance - {{ course.name }}</h2>
+        <p class="text-muted">Course Code: {{ course.code }}</p>
+        
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="date" class="form-label">Select Date</label>
+                        <input type="date" class="form-control" id="date" name="date" 
+                               value="{{ today }}" max="{{ today }}" required>
+                    </div>
+                    
+                    <h4 class="mb-3">Students</h4>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-sm btn-success me-2" onclick="markAll('present')">
+                            Mark All Present
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="markAll('absent')">
+                            Mark All Absent
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Username</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>{{ student.username }}</td>
+                                    <td>{{ student.email }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" 
+                                                   name="status_{{ student.id }}" 
+                                                   id="present_{{ student.id }}" 
+                                                   value="present" checked>
+                                            <label class="btn btn-outline-success btn-sm" 
+                                                   for="present_{{ student.id }}">
+                                                Present
+                                            </label>
+                                            
+                                            <input type="radio" class="btn-check" 
+                                                   name="status_{{ student.id }}" 
+                                                   id="absent_{{ student.id }}" 
+                                                   value="absent">
+                                            <label class="btn btn-outline-danger btn-sm" 
+                                                   for="absent_{{ student.id }}">
+                                                Absent
+                                            </label>
+                                            
+                                            <input type="radio" class="btn-check" 
+                                                   name="status_{{ student.id }}" 
+                                                   id="late_{{ student.id }}" 
+                                                   value="late">
+                                            <label class="btn btn-outline-warning btn-sm" 
+                                                   for="late_{{ student.id }}">
+                                                Late
+                                            </label>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            Save Attendance
+                        </button>
+                        <a href="{{ url_for('main.teacher_dashboard') }}" class="btn btn-secondary btn-lg">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function markAll(status) {
+    document.querySelectorAll(`input[value="${status}"]`).forEach(radio => {
+        radio.checked = true;
+    });
+}
+</script>
+{% endblock %}
