@@ -77,6 +77,7 @@ def student_dashboard():
     return render_template('student_dashboard.html', 
                          records=records, 
                          percentage=round(percentage, 2))
+
 @bp.route('/teacher/mark-attendance/<int:course_id>', methods=['GET', 'POST'])
 @login_required
 def mark_attendance(course_id):
@@ -96,8 +97,7 @@ def mark_attendance(course_id):
         date_str = request.form.get('date')
         attendance_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
-        # Get all students (for now, we'll use all students in the system)
-        # In production, you'd have course enrollments
+        # Get all students
         students = User.query.filter_by(role='student').all()
         
         for student in students:
@@ -177,6 +177,7 @@ def view_course_attendance(course_id):
     return render_template('view_course_attendance.html', 
                          course=course, 
                          student_data=student_data)
+
 @bp.route('/teacher/export-attendance/<int:course_id>')
 @login_required
 def export_attendance(course_id):
@@ -262,11 +263,17 @@ def export_attendance(course_id):
     
     # Send file
     filename = f"attendance_{course.code}_{datetime.now().strftime('%Y%m%d')}.xlsx"
-    @bp.route('/create-admin-emergency', methods=['GET'])
+    
+    return send_file(
+        excel_file,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@bp.route('/create-admin-emergency', methods=['GET'])
 def create_admin_emergency():
     """Emergency route to create admin user"""
-    from app.models import User
-    
     try:
         # Check if admin exists
         admin = User.query.filter_by(username='admin').first()
@@ -294,9 +301,3 @@ def create_admin_emergency():
     
     except Exception as e:
         return f"Error: {e}"
-    return send_file(
-        excel_file,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=filename
-    )
