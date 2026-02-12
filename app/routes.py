@@ -275,29 +275,28 @@ def export_attendance(course_id):
 def create_admin_emergency():
     """Emergency route to create admin user"""
     try:
-        # Check if admin exists
-        admin = User.query.filter_by(username='admin').first()
-        
-        if admin:
-            return "Admin already exists! Try logging in with username: admin, password: Admin@123"
+        # Drop and recreate all tables
+        db.drop_all()
+        db.create_all()
         
         # Create admin
         admin = User(
             username='admin',
             email='admin@attendance-system.com',
-            role='teacher',
-            roll_no=None
+            role='teacher'
         )
         admin.set_password('Admin@123')
         db.session.add(admin)
         db.session.commit()
         
         return """
-        <h1>✅ Admin User Created!</h1>
+        <h1>✅ Database Reset & Admin Created!</h1>
         <p>Username: <strong>admin</strong></p>
         <p>Password: <strong>Admin@123</strong></p>
-        <a href="/login">Go to Login</a>
+        <p><a href="/login" style="font-size: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Go to Login →</a></p>
         """
     
     except Exception as e:
-        return f"Error: {e}"
+        import traceback
+        error_details = traceback.format_exc()
+        return f"<h1>Error</h1><pre>{error_details}</pre>"

@@ -2,46 +2,39 @@ from app import create_app, db
 from app.models import User, Course
 import os
 
-# Determine environment
-config_name = os.environ.get('FLASK_ENV', 'development')
-if config_name == 'production':
-    config_name = 'production'
-else:
-    config_name = 'default'
-
-app = create_app(config_name)
+# Use production config
+app = create_app('production')
 
 with app.app_context():
     try:
-        # Create all tables
+        print("=" * 60)
+        print("INITIALIZING DATABASE...")
+        print("=" * 60)
+        
+        # Drop all tables and recreate (fresh start)
+        db.drop_all()
+        print("✅ Dropped all tables")
+        
         db.create_all()
-        print("✅ Database tables created!")
+        print("✅ Created all tables")
         
-        # Check if admin exists
-        admin = User.query.filter_by(username='admin').first()
+        # Create admin user
+        admin = User(
+            username='admin',
+            email='admin@attendance-system.com',
+            role='teacher'
+        )
+        admin.set_password('Admin@123')
+        db.session.add(admin)
+        db.session.commit()
         
-        if not admin:
-            admin = User(
-                username='admin',
-                email='admin@attendance-system.com',
-                role='teacher',
-                roll_no=None
-            )
-            admin.set_password('Admin@123')
-            db.session.add(admin)
-            db.session.commit()
-            print("✅ Admin user created!")
-            print("=" * 50)
-            print("LOGIN CREDENTIALS:")
-            print("Username: admin")
-            print("Password: Admin@123")
-            print("=" * 50)
-        else:
-            print("ℹ️ Admin user already exists")
-        
-        print("✅ Database initialization complete!")
+        print("=" * 60)
+        print("✅ ADMIN USER CREATED!")
+        print("Username: admin")
+        print("Password: Admin@123")
+        print("=" * 60)
         
     except Exception as e:
-        print(f"❌ Error during initialization: {e}")
-        # Don't fail the app startup, just log the error
-        pass
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
