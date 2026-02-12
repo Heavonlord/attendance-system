@@ -262,7 +262,38 @@ def export_attendance(course_id):
     
     # Send file
     filename = f"attendance_{course.code}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    @bp.route('/create-admin-emergency', methods=['GET'])
+def create_admin_emergency():
+    """Emergency route to create admin user"""
+    from app.models import User
     
+    try:
+        # Check if admin exists
+        admin = User.query.filter_by(username='admin').first()
+        
+        if admin:
+            return "Admin already exists! Try logging in with username: admin, password: Admin@123"
+        
+        # Create admin
+        admin = User(
+            username='admin',
+            email='admin@attendance-system.com',
+            role='teacher',
+            roll_no=None
+        )
+        admin.set_password('Admin@123')
+        db.session.add(admin)
+        db.session.commit()
+        
+        return """
+        <h1>✅ Admin User Created!</h1>
+        <p>Username: <strong>admin</strong></p>
+        <p>Password: <strong>Admin@123</strong></p>
+        <a href="/login">Go to Login</a>
+        """
+    
+    except Exception as e:
+        return f"Error: {e}"
     return send_file(
         excel_file,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
