@@ -21,6 +21,7 @@
                     <span class="navbar-text me-3">
                         Hello, {{ current_user.username }}
                     </span>
+                    <a class="nav-link" href="{{ url_for('main.pricing') }}">Pricing</a>
                     <a class="nav-link" href="{{ url_for('main.logout') }}">Logout</a>
                 {% else %}
                     <a class="nav-link" href="{{ url_for('main.login') }}">Login</a>

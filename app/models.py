@@ -17,17 +17,19 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'teacher' or 'student'
-    roll_no = db.Column(db.String(20), unique=True, nullable=True)  # ADD THIS LINE
+    roll_no = db.Column(db.String(20), unique=True, nullable=True)  # For students
     
     # Relationships
     attendance_records = db.relationship('Attendance', backref='student', lazy=True)
+    
     def set_password(self, password):
         """Hash and store password"""
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
         """Verify password"""
-        return check_password_hash(self.password_hash, password    
+        return check_password_hash(self.password_hash, password)
+    
     def __repr__(self):
         return f'<User {self.username}>'
 
@@ -45,6 +47,22 @@ class Course(db.Model):
     
     def __repr__(self):
         return f'<Course {self.code}>'
+# Enrollment Model - Students enrolled in specific courses
+class Enrollment(db.Model):
+    __tablename__ = 'enrollments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    enrolled_date = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='active')  # active, dropped, completed
+    
+    # Relationships
+    student = db.relationship('User', backref='enrollments')
+    course = db.relationship('Course', backref='enrolled_students')
+    
+    def __repr__(self):
+        return f'<Enrollment {self.student_id} in {self.course_id}>'
 
 # Attendance Model
 class Attendance(db.Model):

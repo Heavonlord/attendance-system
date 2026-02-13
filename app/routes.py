@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models import User, Course, Attendance
+from app.models import User, Course, Attendance, Enrollment  # Add Enrollment
 from datetime import datetime
 
 # Create blueprint
@@ -66,18 +67,45 @@ def student_dashboard():
         flash('Access denied', 'danger')
         return redirect(url_for('main.index'))
     
-    # Get student's attendance records
-    records = Attendance.query.filter_by(student_id=current_user.id).all()
+    # Get only enrolled courses
+    enrollments = Enrollment.query.filter_by(student_id=current_user.id).all()
+    enrolled_course_ids = [e.course_id for e in enrollments]
     
-    # Calculate attendance percentage
+    # Get attendance records for enrolled courses only
+    records = Attendance.query.filter(
+        Attendance.student_id == current_user.id,
+        Attendance.course_id.in_(enrolled_course_ids) if enrolled_course_ids else False
+    ).all()
+    
+    # Calculate overall attendance percentage
     total = len(records)
     present = len([r for r in records if r.status == 'present'])
     percentage = (present / total * 100) if total > 0 else 0
     
+    # Group records by course
+    course_data = {}
+    for record in records:
+        if record.course_id not in course_data:
+            course_data[record.course_id] = {
+                'course': record.course,
+                'total': 0,
+                'present': 0,
+                'records': []
+            }
+        course_data[record.course_id]['total'] += 1
+        if record.status == 'present':
+            course_data[record.course_id]['present'] += 1
+        course_data[record.course_id]['records'].append(record)
+    
+    # Calculate percentages
+    for course_id in course_data:
+        data = course_data[course_id]
+        data['percentage'] = round((data['present'] / data['total']) * 100, 2) if data['total'] > 0 else 0
+    
     return render_template('student_dashboard.html', 
-                         records=records, 
-                         percentage=round(percentage, 2))
-
+                         records=records,
+                         percentage=round(percentage, 2),
+                         course_data=course_data)
 @bp.route('/teacher/mark-attendance/<int:course_id>', methods=['GET', 'POST'])
 @login_required
 def mark_attendance(course_id):
@@ -97,9 +125,14 @@ def mark_attendance(course_id):
         date_str = request.form.get('date')
         attendance_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
-        # Get all students
-        students = User.query.filter_by(role='student').all()
-        
+    # Get all students
+     # Get only enrolled students
+    enrollments = Enrollment.query.filter_by(course_id=course_id).all()
+    students = [e.student for e in enrollments]
+
+    if not students:
+        flash('No students enrolled in this course. Please enroll students first.', 'warning')
+        return redirect(url_for('main.manage_enrollments', course_id=course_id))
         for student in students:
             status = request.form.get(f'status_{student.id}')
             if status:
@@ -177,7 +210,81 @@ def view_course_attendance(course_id):
     return render_template('view_course_attendance.html', 
                          course=course, 
                          student_data=student_data)
+@bp.route('/teacher/manage-enrollments/<int:course_id>', methods=['GET', 'POST'])
+@login_required
+def manage_enrollments(course_id):
+    """Manage student enrollments in a course"""
+    if current_user.role != 'teacher':
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.index'))
+    
+    course = Course.query.get_or_404(course_id)
+    
+    if course.teacher_id != current_user.id:
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.teacher_dashboard'))
+    
+    if request.method == 'POST':
+        student_ids = request.form.getlist('students')
+        
+        # Remove all existing enrollments
+        Enrollment.query.filter_by(course_id=course_id).delete()
+        
+        # Add new enrollments
+        for student_id in student_ids:
+            enrollment = Enrollment(
+                student_id=int(student_id),
+                course_id=course_id
+            )
+            db.session.add(enrollment)
+        
+        db.session.commit()
+        flash(f'Enrolled {len(student_ids)} students in {course.name}', 'success')
+        return redirect(url_for('main.teacher_dashboard'))
+    
+    # GET request - show form
+    all_students = User.query.filter_by(role='student').all()
+    enrolled_student_ids = [e.student_id for e in Enrollment.query.filter_by(course_id=course_id).all()]
+    
+    return render_template('manage_enrollments.html',
+                         course=course,
+                         all_students=all_students,
+                         enrolled_student_ids=enrolled_student_ids)
 
+@bp.route('/teacher/bulk-enroll/<int:course_id>', methods=['POST'])
+@login_required
+def bulk_enroll(course_id):
+    """Bulk enroll all students in a course"""
+    if current_user.role != 'teacher':
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.index'))
+    
+    course = Course.query.get_or_404(course_id)
+    
+    if course.teacher_id != current_user.id:
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.teacher_dashboard'))
+    
+    # Enroll all students
+    all_students = User.query.filter_by(role='student').all()
+    
+    for student in all_students:
+        # Check if already enrolled
+        existing = Enrollment.query.filter_by(
+            student_id=student.id,
+            course_id=course_id
+        ).first()
+        
+        if not existing:
+            enrollment = Enrollment(
+                student_id=student.id,
+                course_id=course_id
+            )
+            db.session.add(enrollment)
+    
+    db.session.commit()
+    flash(f'Enrolled all {len(all_students)} students', 'success')
+    return redirect(url_for('main.manage_enrollments', course_id=course_id))
 @bp.route('/teacher/export-attendance/<int:course_id>')
 @login_required
 def export_attendance(course_id):
@@ -204,7 +311,7 @@ def export_attendance(course_id):
     ws['A3'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     
     # Headers
-    headers = ['Student Name', 'Email', 'Total Classes', 'Present', 'Absent', 'Late', 'Attendance %', 'Status']
+    headers = ['Roll No', 'Student Name', 'Email', 'Total Classes', 'Present', 'Absent', 'Late', 'Attendance %', 'Status']
     for col, header in enumerate(headers, start=1):
         cell = ws.cell(row=5, column=col)
         cell.value = header
@@ -234,17 +341,18 @@ def export_attendance(course_id):
         percentage = round((data['present'] / data['total']) * 100, 2) if data['total'] > 0 else 0
         status = 'Good' if percentage >= 75 else 'Low'
         
-        ws.cell(row=row, column=1, value=data['student'].username)
-        ws.cell(row=row, column=2, value=data['student'].email)
-        ws.cell(row=row, column=3, value=data['total'])
-        ws.cell(row=row, column=4, value=data['present'])
-        ws.cell(row=row, column=5, value=data['absent'])
-        ws.cell(row=row, column=6, value=data['late'])
-        ws.cell(row=row, column=7, value=f"{percentage}%")
-        ws.cell(row=row, column=8, value=status)
+        ws.cell(row=row, column=1, value=data['student'].roll_no or 'N/A')
+        ws.cell(row=row, column=2, value=data['student'].username)
+        ws.cell(row=row, column=3, value=data['student'].email)
+        ws.cell(row=row, column=4, value=data['total'])
+        ws.cell(row=row, column=5, value=data['present'])
+        ws.cell(row=row, column=6, value=data['absent'])
+        ws.cell(row=row, column=7, value=data['late'])
+        ws.cell(row=row, column=8, value=f"{percentage}%")
+        ws.cell(row=row, column=9, value=status)
         
         # Color code status
-        status_cell = ws.cell(row=row, column=8)
+        status_cell = ws.cell(row=row, column=9)
         if percentage >= 75:
             status_cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
         else:
@@ -253,7 +361,7 @@ def export_attendance(course_id):
         row += 1
     
     # Adjust column widths
-    for col in range(1, 9):
+    for col in range(1, 10):
         ws.column_dimensions[chr(64 + col)].width = 15
     
     # Save to BytesIO
@@ -270,33 +378,80 @@ def export_attendance(course_id):
         as_attachment=True,
         download_name=filename
     )
-
-@bp.route('/create-admin-emergency', methods=['GET'])
-def create_admin_emergency():
-    """Emergency route to create admin user"""
-    try:
-        # Drop and recreate all tables
-        db.drop_all()
-        db.create_all()
-        
-        # Create admin
-        admin = User(
-            username='admin',
-            email='admin@attendance-system.com',
-            role='teacher'
-        )
-        admin.set_password('Admin@123')
-        db.session.add(admin)
-        db.session.commit()
-        
-        return """
-        <h1>✅ Database Reset & Admin Created!</h1>
-        <p>Username: <strong>admin</strong></p>
-        <p>Password: <strong>Admin@123</strong></p>
-        <p><a href="/login" style="font-size: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Go to Login →</a></p>
-        """
+@bp.route('/teacher/predictive-alerts/<int:course_id>')
+@login_required
+def predictive_alerts(course_id):
+    """Show predictive attendance alerts"""
+    if current_user.role != 'teacher':
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.index'))
     
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        return f"<h1>Error</h1><pre>{error_details}</pre>"
+    course = Course.query.get_or_404(course_id)
+    
+    if course.teacher_id != current_user.id:
+        flash('Access denied', 'danger')
+        return redirect(url_for('main.teacher_dashboard'))
+    
+    # Get all enrolled students
+    enrollments = Enrollment.query.filter_by(course_id=course_id).all()
+    
+    predictions = []
+    for enrollment in enrollments:
+        student = enrollment.student
+        
+        # Calculate current attendance
+        records = Attendance.query.filter_by(
+            student_id=student.id,
+            course_id=course_id
+        ).all()
+        
+        total = len(records)
+        present = len([r for r in records if r.status == 'present'])
+        
+        if total == 0:
+            continue
+        
+        current_percentage = (present / total) * 100
+        
+        # Predict: If student misses next 3 classes
+        predicted_total = total + 3
+        predicted_present = present
+        predicted_percentage = (predicted_present / predicted_total) * 100
+        
+        # Calculate how many more classes they can miss
+        min_required = 0.75  # 75%
+        max_absences = int((total - (min_required * total)) / (1 - min_required))
+        absences_so_far = total - present
+        absences_remaining = max_absences - absences_so_far
+        
+        # Alert conditions
+        alert_level = 'safe'
+        if current_percentage < 75:
+            alert_level = 'critical'
+        elif predicted_percentage < 75:
+            alert_level = 'warning'
+        elif absences_remaining <= 2:
+            alert_level = 'caution'
+        
+        predictions.append({
+            'student': student,
+            'current_percentage': round(current_percentage, 2),
+            'predicted_percentage': round(predicted_percentage, 2),
+            'absences_remaining': absences_remaining,
+            'alert_level': alert_level,
+            'total_classes': total,
+            'present': present,
+            'absent': total - present
+        })
+    
+    # Sort by alert level
+    alert_order = {'critical': 0, 'warning': 1, 'caution': 2, 'safe': 3}
+    predictions.sort(key=lambda x: alert_order[x['alert_level']])
+    
+    return render_template('predictive_alerts.html',
+                         course=course,
+                         predictions=predictions)
+@bp.route('/pricing')
+def pricing():
+    """Pricing page"""
+    return render_template('pricing.html')

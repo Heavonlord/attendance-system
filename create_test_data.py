@@ -1,5 +1,5 @@
 from app import create_app, db
-from app.models import User, Course, Attendance
+from app.models import User, Course, Attendance, Enrollment
 from datetime import datetime, timedelta
 
 app = create_app()
@@ -9,89 +9,140 @@ with app.app_context():
     db.drop_all()
     db.create_all()
     
-    print("Creating users...")
+    print("=" * 60)
+    print("Creating test data with enrollments...")
+    print("=" * 60)
     
     # Create a teacher
-    teacher = User(username='teacher1', email='teacher@school.com', role='teacher')
+    teacher = User(
+        username='teacher1',
+        email='teacher@school.com',
+        role='teacher'
+    )
     teacher.set_password('password123')
     db.session.add(teacher)
-    
-    # Create students
-    student1 = User(username='student1', email='student1@school.com', role='student')
-    student1.set_password('password123')
-    
-    student2 = User(username='student2', email='student2@school.com', role='student')
-    student2.set_password('password123')
-    
-    student3 = User(username='student3', email='student3@school.com', role='student')
-    student3.set_password('password123')
-    
-    db.session.add(student1)
-    db.session.add(student2)
-    db.session.add(student3)
     db.session.commit()
     
-    print("Creating course...")
+    # Create students with roll numbers
+    students_data = [
+        ('Amal Kumar', 'student1@school.com', 'CS101'),
+        ('Priya Singh', 'student2@school.com', 'CS102'),
+        ('Rahul Verma', 'student3@school.com', 'CS103'),
+        ('Sneha Reddy', 'student4@school.com', 'CS104'),
+        ('Arjun Patel', 'student5@school.com', 'CS105'),
+        ('Meera Nair', 'student6@school.com', 'CS106'),
+        ('Karthik Raj', 'student7@school.com', 'CS107'),
+        ('Anjali Sharma', 'student8@school.com', 'CS108'),
+    ]
     
-    # Create a course
-    course = Course(name='Python Programming', code='CS101', teacher_id=teacher.id)
-    db.session.add(course)
-    db.session.commit()
-    
-    print("Creating attendance records...")
-    
-    # List of all students
-    students = [student1, student2, student3]
-    
-    # Create 10 days of attendance records
-    # IMPORTANT: Same dates for ALL students
-    for i in range(10):
-        attendance_date = datetime.now().date() - timedelta(days=i)
-        
-        # Mark attendance for ALL students on this date
-        # student1: 8/10 present (80%)
-        # student2: 6/10 present (60%)  
-        # student3: 10/10 present (100%)
-        
-        # Student1 - mostly present
-        status1 = 'present' if i < 8 else 'absent'
-        record1 = Attendance(
-            student_id=student1.id,
-            course_id=course.id,
-            date=attendance_date,
-            status=status1
+    students = []
+    for name, email, roll_no in students_data:
+        student = User(
+            username=name,
+            email=email,
+            role='student',
+            roll_no=roll_no
         )
-        db.session.add(record1)
-        
-        # Student2 - borderline attendance
-        status2 = 'present' if i < 6 else 'absent'
-        record2 = Attendance(
-            student_id=student2.id,
-            course_id=course.id,
-            date=attendance_date,
-            status=status2
-        )
-        db.session.add(record2)
-        
-        # Student3 - perfect attendance
-        record3 = Attendance(
-            student_id=student3.id,
-            course_id=course.id,
-            date=attendance_date,
-            status='present'
-        )
-        db.session.add(record3)
+        student.set_password('password123')
+        students.append(student)
+        db.session.add(student)
     
     db.session.commit()
+    print(f"✅ Created {len(students)} students")
     
-    print("\n✅ Test data created successfully!\n")
-    print("=" * 50)
-    print("LOGIN CREDENTIALS:")
-    print("=" * 50)
-    print("Teacher: teacher1 / password123")
-    print("Student: student1 / password123 (80% attendance)")
-    print("Student: student2 / password123 (60% attendance)")
-    print("Student: student3 / password123 (100% attendance)")
-    print("=" * 50)
-    print("\nAll students have 10 total classes")
-    print("Attendance marked for the same 10 dates for everyone")
+    # Create courses
+    course1 = Course(
+        name='Python Programming',
+        code='CS101',
+        teacher_id=teacher.id
+    )
+    course2 = Course(
+        name='Data Structures',
+        code='CS102',
+        teacher_id=teacher.id
+    )
+    db.session.add(course1)
+    db.session.add(course2)
+    db.session.commit()
+    print("✅ Created 2 courses")
+    
+    # Enroll students in courses
+    # Course 1: First 5 students
+    for i in range(5):
+        enrollment = Enrollment(
+            student_id=students[i].id,
+            course_id=course1.id
+        )
+        db.session.add(enrollment)
+    
+    # Course 2: Last 5 students (some overlap)
+    for i in range(3, 8):
+        enrollment = Enrollment(
+            student_id=students[i].id,
+            course_id=course2.id
+        )
+        db.session.add(enrollment)
+    
+    db.session.commit()
+    print("✅ Created enrollments")
+    
+    # Create 10 days of attendance for Course 1
+    for day in range(10):
+        attendance_date = datetime.now().date() - timedelta(days=day)
+        
+        # Enrolled students for course 1 (first 5)
+        for i in range(5):
+            # Varying attendance patterns
+            if i == 0:  # 90%
+                status = 'present' if day < 9 else 'absent'
+            elif i == 1:  # 70%
+                status = 'present' if day < 7 else 'absent'
+            elif i == 2:  # 100%
+                status = 'present'
+            elif i == 3:  # 60%
+                status = 'present' if day < 6 else 'absent'
+            else:  # 80%
+                status = 'present' if day < 8 else 'absent'
+            
+            record = Attendance(
+                student_id=students[i].id,
+                course_id=course1.id,
+                date=attendance_date,
+                status=status
+            )
+            db.session.add(record)
+    
+    # Create 10 days of attendance for Course 2
+    for day in range(10):
+        attendance_date = datetime.now().date() - timedelta(days=day)
+        
+        # Enrolled students for course 2 (students 3-7)
+        for i in range(3, 8):
+            status = 'present' if day < 7 else 'absent'  # 70% for all
+            
+            record = Attendance(
+                student_id=students[i].id,
+                course_id=course2.id,
+                date=attendance_date,
+                status=status
+            )
+            db.session.add(record)
+    
+    db.session.commit()
+    print("✅ Created attendance records")
+    
+    print("\n" + "=" * 60)
+    print("✅ TEST DATA CREATED SUCCESSFULLY!")
+    print("=" * 60)
+    print("\nLOGIN CREDENTIALS:")
+    print("-" * 60)
+    print("Teacher:")
+    print("  Username: teacher1")
+    print("  Password: password123")
+    print("\nStudents (all password: password123):")
+    for name, email, roll_no in students_data:
+        print(f"  {name} ({roll_no}) - {email.split('@')[0]}")
+    print("\nCourses:")
+    print("  Python Programming (CS101) - 5 students enrolled")
+    print("  Data Structures (CS102) - 5 students enrolled")
+    print("=" * 60)

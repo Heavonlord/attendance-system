@@ -17,8 +17,16 @@
                                 <div>
                                     <h5 class="mb-1">{{ course.name }}</h5>
                                     <small class="text-muted">{{ course.code }}</small>
+                                    <br>
+                                    <small class="badge bg-info">
+                                        {{ course.enrolled_students|length }} students enrolled
+                                    </small>
                                 </div>
                                 <div>
+                                    <a href="{{ url_for('main.manage_enrollments', course_id=course.id) }}" 
+                                       class="btn btn-secondary btn-sm me-2">
+                                        👥 Manage Students
+                                    </a>
                                     <a href="{{ url_for('main.mark_attendance', course_id=course.id) }}" 
                                        class="btn btn-primary btn-sm me-2">
                                         ✓ Mark Attendance
@@ -26,6 +34,9 @@
                                     <a href="{{ url_for('main.view_course_attendance', course_id=course.id) }}" 
                                        class="btn btn-info btn-sm">
                                         📊 View Records
+                                    </a><a href="{{ url_for('main.predictive_alerts', course_id=course.id) }}" 
+                                       class="btn btn-warning btn-sm">
+                                        🔮 Predictions
                                     </a>
                                 </div>
                             </div>

@@ -16,19 +16,6 @@ class Config:
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-class Config:
-    """Base configuration"""
-    
-    # Secret key for session management (change this in production!)
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    
-    # Database configuration
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'attendance.db')
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # Add more config as needed
-
 class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True

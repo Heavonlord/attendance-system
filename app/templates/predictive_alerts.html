@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>🔮 Predictive Attendance Alerts - {{ course.name }}</h2>
+<p class="text-muted">Course Code: {{ course.code }}</p>
+
+<div class="alert alert-info mb-4">
+    <strong>💡 How it works:</strong> This system predicts which students are at risk of falling below 75% attendance 
+    based on their current pattern. Take action NOW before it's too late!
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title mb-4">Risk Assessment</h3>
+        
+        {% if predictions %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Alert</th>
+                        <th>Roll No</th>
+                        <th>Student</th>
+                        <th>Current %</th>
+                        <th>After 3 More Absences</th>
+                        <th>Classes Left to Miss</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in predictions %}
+                    <tr class="{% if pred.alert_level == 'critical' %}table-danger{% elif pred.alert_level == 'warning' %}table-warning{% elif pred.alert_level == 'caution' %}table-info{% endif %}">
+                        <td>
+                            {% if pred.alert_level == 'critical' %}
+                                <span class="badge bg-danger">🚨 CRITICAL</span>
+                            {% elif pred.alert_level == 'warning' %}
+                                <span class="badge bg-warning text-dark">⚠️ WARNING</span>
+                            {% elif pred.alert_level == 'caution' %}
+                                <span class="badge bg-info">⚡ CAUTION</span>
+                            {% else %}
+                                <span class="badge bg-success">✓ SAFE</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ pred.student.roll_no or 'N/A' }}</strong></td>
+                        <td>{{ pred.student.username }}</td>
+                        <td>
+                            <strong class="{% if pred.current_percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                {{ pred.current_percentage }}%
+                            </strong>
+                            <br>
+                            <small class="text-muted">{{ pred.present }}/{{ pred.total_classes }}</small>
+                        </td>
+                        <td>
+                            <strong class="{% if pred.predicted_percentage < 75 %}text-danger{% else %}text-muted{% endif %}">
+                                {{ pred.predicted_percentage }}%
+                            </strong>
+                        </td>
+                        <td>
+                            {% if pred.absences_remaining <= 0 %}
+                                <span class="badge bg-danger">NONE</span>
+                            {% elif pred.absences_remaining <= 2 %}
+                                <span class="badge bg-warning text-dark">{{ pred.absences_remaining }}</span>
+                            {% else %}
+                                <span class="badge bg-success">{{ pred.absences_remaining }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if pred.alert_level == 'critical' %}
+                                <small class="text-danger">Below 75% already!</small>
+                            {% elif pred.alert_level == 'warning' %}
+                                <small class="text-warning">Will drop below 75% soon</small>
+                            {% elif pred.alert_level == 'caution' %}
+                                <small class="text-info">Close to danger zone</small>
+                            {% else %}
+                                <small class="text-muted">Attendance is healthy</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if pred.alert_level in ['critical', 'warning'] %}
+                                <button class="btn btn-sm btn-primary" onclick="sendAlert('{{ pred.student.username }}', '{{ pred.student.email }}', {{ pred.current_percentage }})">
+                                    📧 Send Alert
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-4">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-center border-danger">
+                        <div class="card-body">
+                            <h2 class="text-danger">{{ predictions | selectattr('alert_level', 'equalto', 'critical') | list | length }}</h2>
+                            <small>Critical Alerts</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-warning">
+                        <div class="card-body">
+                            <h2 class="text-warning">{{ predictions | selectattr('alert_level', 'equalto', 'warning') | list | length }}</h2>
+                            <small>Warnings</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-info">
+                        <div class="card-body">
+                            <h2 class="text-info">{{ predictions | selectattr('alert_level', 'equalto', 'caution') | list | length }}</h2>
+                            <small>Caution</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-success">
+                        <div class="card-body">
+                            <h2 class="text-success">{{ predictions | selectattr('alert_level', 'equalto', 'safe') | list | length }}</h2>
+                            <small>Safe</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% else %}
+        <p class="text-muted">No students enrolled in this course yet.</p>
+        {% endif %}
+        
+        <div class="mt-4">
+            <a href="{{ url_for('main.teacher_dashboard') }}" class="btn btn-secondary">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function sendAlert(studentName, email, percentage) {
+    if (confirm(`Send alert to ${studentName} (${email})?\n\nTheir attendance is ${percentage}%.`)) {
+        alert('✓ Alert sent! (In production, this would send SMS/Email)');
+        // In production, this would call a route that sends actual SMS/Email
+    }
+}
+</script>
+{% endblock %}
